@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        h1 {
+            text-align: center;
+        }
+
+        .chart-container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-around;
+            margin-top: 30px;
+        }
+
+        .chart {
+            width: 45%;
+            margin: 20px 0;
+        }
+
+        .apexcharts-menu {
+            background-color: #27293d !important;
+            border: 0px;
+        }
+    </style>
+</head>
+
+
+<body class="bg-gray-900 text-white">
+    <div class="flex justify-between items-center p-4">
+        <h1 class="text-5xl">Dashboard</h1>
+
+        <button id="load-data-btn"
+            class="bg-yellow-500 hover:bg-yellow-700 text-white font-bold py-2 px-4 rounded ml-4">
+            Cargar Datos
+        </button>
+
+        <button id="train-model-ventas-btn"
+            class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
+            Entrenar Modelo Ventas
+        </button>
+
+        <button id="train-model-btn" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
+            Entrenar Parabrisas
+        </button>
+
+
+        <div class="flex items-center">
+            <img src="{{ request.session.profile_photo_url }}" alt="Profile Photo" class="w-10 h-10 rounded-full mr-4">
+            <p class="mr-4">{{ request.session.user_name }}</p>
+            <a href="{% url 'logout' %}" class="text-white bg-red-500 hover:bg-red-700 font-bold py-2 px-4 rounded">
+                Logout
+            </a>
+        </div>
+
+    </div>
+
+    <div id="loading-message">Cargando...</div>
+
+    <div class="chart-container ">
+        <div id="ventas-mensuales-chart" class="chart  text-white bg-gray-800 rounded-lg p-5"></div>
+        <div id="ventas-por-almacen-chart" class="chart  text-white bg-gray-800 rounded-lg p-5"></div>
+        <div id="compras-ultimo-mes-chart" class="chart text-white bg-gray-800 rounded-lg p-5"></div>
+        <div id="compras-por-proveedor-chart" class="chart text-white bg-gray-800 rounded-lg p-5"></div>
+        <div id="ocupacion-almacenes-chart" class="chart text-white bg-gray-800 rounded-lg p-5"></div>
+
+        <!-- <div id="donut-chart" class="chart chart text-white bg-gray-800 rounded-lg p-5"></div>
+         -->
+        <div id="clientes-mas-compran-chart" class="chart text-white bg-gray-800 rounded-lg p-5"></div>
+
+        <!-- <div id="donut-chart"></div>
+ -->
+
+
+
+
+        <div id="predicciones-parabrisas-chart" class="chart text-white bg-gray-800 rounded-lg p-5"></div>
+
+
+
+
+
+        <div id="predicciones-ventas-chart" class="chart text-white bg-gray-800 rounded-lg p-5"></div>
+
+
+    </div>
+
+
+
+
+    <script>
+
+        function showLoadingMessage() {
+            document.getElementById('loading-message').style.display = 'block';
+        }
+
+        // Función para ocultar el mensaje de carga
+        function hideLoadingMessage() {
+            document.getElementById('loading-message').style.display = 'none';
+        }
+
+
+        // Define los endpoints y contenedores para los gráficos
+        const endpoints = [
+            {
+                id: '#ventas-mensuales-chart',
+                url: '/ventas-mensuales-data/',
+                title: 'Ventas Mensuales',
+                type: 'line',
+                transformCategories: mes => {
+                    const meses = [
+                        '', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo',
+                        'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre',
+                        'Noviembre', 'Diciembre'
+                    ];
+                    return meses[mes];
+                }
+            },
+            {
+                id: '#ventas-por-almacen-chart',
+                url: '/ventas-por-almacen-data/',
+                title: 'Ventas por Almacén',
+                type: 'bar'
+            },
+
+            {
+                id: '#compras-ultimo-mes-chart',
+                url: '/compras-ultimo-mes-data/',
+                title: 'Compras Ultimo Año',
+                type: 'line',
+                transformCategories: mes => {
+                    const meses = [
+                        '', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo',
+                        'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre',
+                        'Noviembre', 'Diciembre'
+                    ];
+                    return meses[mes];
+                }
+
+            },
+
+            {
+                id: '#compras-por-proveedor-chart',
+                url: '/compras-por-proveedor-data/',
+                title: 'Compras por Proveedor',
+                type: 'bar'
+            },
+            /*
+            {
+                id: '#ocupacion-almacenes-chart',
+                url: '/ocupacion-almacenes-data/',
+                title: 'Ocupación de Almacenes',
+                type: 'bar'
+            },*/
+
+
+            {
+                id: '#clientes-mas-compran-chart',
+                url: '/clientes-mas-compran-data/',
+                title: 'Clientes que Más Compran',
+                type: 'bar'
+            }
+        ];
+
+
+
+
+
+
+
+        //console.log(endpoints);
+        // Función para inicializar un gráfico
+        function renderChart({ id, url, title, type, transformCategories }) {
+            fetch(url)
+                .then(response => response.json())
+                .then(data => {
+
+                    //console.log(`Datos recibidos para ${title}:`, data);
+                    const options = {
+                        chart: {
+                            type: type,
+                            height: 350,
+                            toolbar: {
+                                style: {
+                                    background: "#1A56DB",
+                                }
+                            },
+                        },
+
+                        title: {
+                            text: title,
+                            align: 'center',
+                            style: {
+                                color: "#FFFFFF",  // Cambiar el color del título del gráfico
+                                fontSize: '24px',   // Tamaño de la fuente del título
+                                fontWeight: 'bold'  // Peso de la fuente
+                            }  // Cambiar el color del título
+                        },
+                        series: [{
+                            name: title,
+                            data: data.values,
+                            color: "#1A56DB",
+                        }],
+
+                        /*horizontal*/
+                        xaxis: {
+                            labels: {
+                                style: {
+                                    colors: "#FFFFFF",  // Cambiar el color de las etiquetas
+                                }
+                            },
+                            categories: transformCategories
+                                ? data.categories.map(transformCategories)
+                                : data.categories
+                        },
+
+                        yaxis: {
+                            labels: {
+                                style: {
+                                    colors: "#FFFFFF",  // Cambiar el color de las etiquetas
+                                }
+                            }
+                        },
+                        /*mouse encima del grafico*/
+                        tooltip: {
+
+                            theme: 'dark',
+                            style: {
+                                color: "#FFFFFF",  // Cambiar el color del texto del tooltip
+                            }
+                        },
+
+                        legend: {
+                            theme: 'dark',
+                            labels: {
+                                colors: "#FFFFFF",  // Cambiar el color de las etiquetas
+                            }
+                        },
+
+
+
+                    };
+
+                    // Renderiza el gráfico en el contenedor especificado
+                    const chart = new ApexCharts(document.querySelector(id), options);
+                    chart.render();
+                })
+                .catch(error => console.error(`Error al cargar los datos de ${title}:`, error));
+        }
+
+
+
+        /* 
+        function nuevo() {
+
+            fetch('/ocupacion-almacenes-data/')
+                .then(response => response.json())
+                .then(data => {
+
+                    //console.log(`recibe o nega almacen `, data);
+                    const options = {
+                        chart: {
+                            theme: {
+                                mode: 'dark',
+                                palette: 'palette1'
+                            },
+                            type: 'donut',
+                            height: 350,
+                            toolbar:{
+                              style:{
+                                background:"#1A56DB",
+                              }
+                            },
+                        },
+
+                        series: data.values,  // Los valores de las porciones del donut
+                        labels: ['A', 'B', 'C', 'D'],  // Las etiquetas correspondientes a cada porción
+                        colors: ['#FF4560', '#008FFB', '#00E396', '#FEB019'],  // Colores para cada sección
+                        responsive: [{
+                            breakpoint: 480,
+                            options: {
+                                chart: {
+                                    width: 200
+                                },
+                                legend: {
+                                    position: 'bottom'
+                                }
+                            }
+                        }],
+                        legend: {
+                            position: 'right',
+                            offsetY: 0,
+                            height: 230
+                        }
+                    };
+                    // Renderiza el gráfico en el contenedor especificado
+                    const chart = new ApexCharts(document.querySelector('#donut-chart'), options);
+                    chart.render();
+                })
+            //.catch(error => console.error(`Error al cargar los datos de ${title}:`, error));
+
+
+
+        }
+        */
+        // Función específica para el gráfico de ocupación de almacenes
+        function renderOcupacionAlmacenesChart() {
+            fetch('/ocupacion-almacenes-data/')
+                .then(response => response.json())
+                .then(data => {
+                    console.log(`Datos recibidos para Ocupación de Almacenes:`, data);
+                    const options = {
+                        chart: {
+                            type: 'bar',
+                            height: 350,
+                            toolbar: {
+                                style: {
+                                    background: "#1A56DB",
+                                }
+                            },
+                        },
+                        title: {
+                            text: 'Ocupación de Almacenes',
+                            align: 'center',
+                            style: {
+                                color: "#FFFFFF",
+                                fontSize: '24px',
+                                fontWeight: 'bold'
+                            }
+                        },
+                        series: [
+                            {
+                                name: 'Stock',
+                                data: data.stock,
+                                color: 'rgba(75, 192, 192, 1)'
+                            },
+                            {
+                                name: 'Capacidad',
+                                data: data.capacity,
+                                color: 'rgba(153, 102, 255, 1)'
+                            }
+                        ],
+                        xaxis: {
+                            categories: data.categories,
+                            labels: {
+                                style: {
+                                    colors: "#FFFFFF",
+                                }
+                            }
+                        },
+                        yaxis: {
+                            labels: {
+                                style: {
+                                    colors: "#FFFFFF",
+                                }
+                            }
+                        },
+                        tooltip: {
+                            theme: 'dark',
+                            style: {
+                                color: "#FFFFFF",
+                            }
+                        },
+                        legend: {
+                            theme: 'dark',
+                            labels: {
+                                colors: "#FFFFFF",
+                            }
+                        }
+                    };
+
+                    // Renderiza el gráfico en el contenedor especificado
+                    const chart = new ApexCharts(document.querySelector('#ocupacion-almacenes-chart'), options);
+                    chart.render();
+                })
+                .catch(error => console.error(`Error al cargar los datos de Ocupación de Almacenes:`, error));
+        }
+
+
+
+        // Función para inicializar el gráfico de predicciones de ventas
+        function renderPrediccionesVentasChart(data) {
+            const options = {
+                chart: {
+                    type: 'line',
+                    height: 350,
+                    toolbar: {
+                        style: {
+                            background: "#1A56DB",
+                        }
+                    },
+                },
+                title: {
+                    text: 'Predicciones de Ventas',
+                    align: 'center',
+                    style: {
+                        color: "#FFFFFF",
+                        fontSize: '24px',
+                        fontWeight: 'bold'
+                    }
+                },
+                series: [{
+                    name: 'Ventas Predichas',
+                    data: data.map(item => item.ventas_predichas)
+                }],
+                xaxis: {
+                    labels: {
+                        style: {
+                            colors: "#FFFFFF",
+                        }
+                    },
+                    categories: data.map(item => item.mes)
+                },
+                yaxis: {
+                    labels: {
+                        style: {
+                            colors: "#FFFFFF",
+                        }
+                    }
+                },
+                tooltip: {
+                    theme: 'dark',
+                    style: {
+                        color: "#FFFFFF",
+                    }
+                },
+                legend: {
+                    theme: 'dark',
+                    labels: {
+                        colors: "#FFFFFF",
+                    }
+                }
+            };
+
+            // Renderiza el gráfico en el contenedor especificado
+            const chart = new ApexCharts(document.querySelector('#predicciones-ventas-chart'), options);
+            chart.render();
+        }
+
+        //nuevo();
+        // Renderizar el gráfico
+
+        renderOcupacionAlmacenesChart();
+        // Inicializar todos los gráficos
+        endpoints.forEach(endpoint => renderChart(endpoint));
+
+
+
+        function renderPrediccionesParabrisasChart(data) {
+            const groupedData = data.reduce((acc, item) => {
+                const { descripcion_producto, mes, ventas_predichas } = item;
+                if (!acc[descripcion_producto]) {
+                    acc[descripcion_producto] = { name: descripcion_producto, data: [] };
+                }
+                acc[descripcion_producto].data.push({ x: mes, y: ventas_predichas });
+                return acc;
+            }, {});
+
+            const series = Object.values(groupedData);
+
+            const options = {
+                chart: {
+                    type: 'line',
+                    height: 350,
+                    toolbar: {
+                        style: {
+                            background: "#1A56DB",
+                        }
+                    },
+                },
+                title: {
+                    text: 'Predicciones de Parabrisas',
+                    align: 'center',
+                    style: {
+                        color: "#FFFFFF",
+                        fontSize: '24px',
+                        fontWeight: 'bold'
+                    }
+                },
+                series: series,
+                xaxis: {
+                    labels: {
+                        style: {
+                            colors: "#FFFFFF",
+                        }
+                    },
+                    categories: series[0].data.map(item => item.x)
+                },
+                yaxis: {
+                    labels: {
+                        style: {
+                            colors: "#FFFFFF",
+                        }
+                    }
+                },
+                tooltip: {
+                    theme: 'dark',
+                    style: {
+                        color: "#FFFFFF",
+                    }
+                },
+                legend: {
+                    theme: 'dark',
+                    labels: {
+                        colors: "#FFFFFF",
+                    }
+                }
+            };
+
+            // Renderiza el gráfico en el contenedor especificado
+            const chart = new ApexCharts(document.querySelector('#predicciones-parabrisas-chart'), options);
+            chart.render();
+        }
+
+
+
+
+
+
+        // Evento para el botón de entrenar modelo
+        document.getElementById('train-model-btn').addEventListener('click', () => {
+            showLoadingMessage();
+            fetch('/train-model/')
+                .then(response => response.json())
+                .then(data => {
+                    console.log(data);
+                    alert('Modelo entrenado exitosamente');
+                })
+                .catch(error => console.error('Error al entrenar el modelo:', error))
+                .finally(() => {
+                    hideLoadingMessage();
+                });
+        });
+
+
+        function predictParabrisas() {
+            showLoadingMessage();
+            fetch('/predict/')
+                .then(response => response.json())
+                .then(data => {
+                    // Formatear las ventas predichas para que solo tengan 2 decimales
+                    data.forEach(item => {
+                        item.ventas_predichas = parseFloat(item.ventas_predichas).toFixed(2);
+                    });
+
+                    console.log(data);
+                    renderPrediccionesParabrisasChart(data);
+                    //alert('Predicciones realizadas exitosamente');
+                })
+                .catch(error => console.error('Error al hacer predicciones:', error))
+                .finally(() => {
+                    hideLoadingMessage();
+                });
+        }
+
+
+        document.getElementById('train-model-ventas-btn').addEventListener('click', () => {
+            showLoadingMessage();
+            fetch('/train-sales-model/')
+                .then(response => response.json())
+                .then(data => {
+                    console.log(data);
+                    alert('Modelo de ventas entrenado exitosamente');
+                })
+                .catch(error => console.error('Error al entrenar el modelo de ventas:', error))
+                .finally(() => {
+                    hideLoadingMessage();
+                });
+        });
+
+        function predictVentas() {
+            showLoadingMessage();
+            fetch('/predict-sales/')
+                .then(response => response.json())
+                .then(data => {
+                    console.log(data);
+                    renderPrediccionesVentasChart(data);
+                    //alert('Predicciones de ventas realizadas exitosamente');
+                })
+                .catch(error => console.error('Error al hacer predicciones de ventas:', error))
+                .finally(() => {
+                    hideLoadingMessage();
+                });
+        }
+
+        // Ejecutar las predicciones automáticamente al cargar la vista
+        document.addEventListener('DOMContentLoaded', () => {
+            predictParabrisas();
+            predictVentas();
+        });
+
+        document.getElementById('load-data-btn').addEventListener('click', () => {
+            fetch('/load-data/')
+                .then(response => response.json())
+                .then(data => {
+                    console.log(data);
+                    alert('Datos cargados exitosamente');
+                })
+                .catch(error => console.error('Error al cargar los datos:', error))
+                .finally(() => {
+                    hideLoadingMessage();
+                });
+        });
+
+
+
+
+    </script>
+</body>
+
+</html>
